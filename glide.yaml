@@ -1,0 +1,24 @@
+package: github.com/sethpollack/soft-limits
+import:
+- package: k8s.io/api
+  subpackages:
+  - core/v1
+- package: k8s.io/apimachinery
+  subpackages:
+  - pkg/api/resource
+  - pkg/apis/meta/v1
+  - pkg/runtime/schema
+- package: k8s.io/client-go
+  version: ^5.0.1
+  subpackages:
+  - kubernetes
+  - kubernetes/typed/core/v1
+  - rest
+  - tools/clientcmd
+- package: k8s.io/kubernetes
+  version: ^1.9.0-alpha.2
+  subpackages:
+  - pkg/api
+- package: k8s.io/metrics
+  subpackages:
+  - pkg/apis/metrics/v1alpha1
