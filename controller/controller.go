@@ -16,7 +16,7 @@ import (
 
 const (
 	softLimitCpuAnnotation = "sethpollack.net/soft-limit-cpu"
-	softLimitMemAnnotation = "sethpollack.net/soft-limit-mem"
+	softLimitMemAnnotation = "sethpollack.net/soft-limit-memory"
 )
 
 type softLimitController struct {
