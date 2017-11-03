@@ -11,10 +11,14 @@ import (
 )
 
 var (
-	prefix       = "/apis"
-	groupVersion = fmt.Sprintf("%s/%s", metricsGv.Group, metricsGv.Version)
-	metricsRoot  = fmt.Sprintf("%s/%s", prefix, groupVersion)
+	heapsterNamespace = "kube-system"
+	heapsterScheme    = "http"
+	heapsterService   = "heapster"
+	heapsterPort      = ""
+
 	metricsGv    = schema.GroupVersion{Group: "metrics", Version: "v1alpha1"}
+	groupVersion = fmt.Sprintf("%s/%s", metricsGv.Group, metricsGv.Version)
+	metricsRoot  = fmt.Sprintf("%s/%s", "/apis", groupVersion)
 )
 
 type HeapsterMetricsClient struct {
@@ -28,10 +32,10 @@ type HeapsterMetricsClient struct {
 func NewHeapsterMetricsClient(svcClient corev1.ServicesGetter) *HeapsterMetricsClient {
 	return &HeapsterMetricsClient{
 		SVCClient:         svcClient,
-		HeapsterNamespace: "kube-system",
-		HeapsterScheme:    "http",
-		HeapsterService:   "heapster",
-		HeapsterPort:      "",
+		HeapsterNamespace: heapsterNamespace,
+		HeapsterScheme:    heapsterScheme,
+		HeapsterService:   heapsterService,
+		HeapsterPort:      heapsterPort,
 	}
 }
 
@@ -39,10 +43,11 @@ func podMetricsUrl(p v1.Pod) string {
 	return fmt.Sprintf("%s/namespaces/%s/pods/%s", metricsRoot, p.Namespace, p.Name)
 }
 
-func (cli *HeapsterMetricsClient) GetPodMetrics(pod v1.Pod) (podMetrics metricsapi.PodMetrics, err error) {
+func (cli *HeapsterMetricsClient) GetPodMetrics(pod v1.Pod) (metricsapi.PodMetrics, error) {
 	path := podMetricsUrl(pod)
-
 	params := map[string]string{"labelSelector": ""}
+
+	podMetrics := metricsapi.PodMetrics{}
 
 	resultRaw, err := getHeapsterMetrics(cli, path, params)
 	if err != nil {
