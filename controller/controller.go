@@ -42,7 +42,11 @@ func (c *softLimitController) Run(ctx context.Context, duration time.Duration) {
 }
 
 func (c *softLimitController) killPods() {
-	pods, _ := c.podClient.Pods("").List(metav1.ListOptions{})
+	pods, err := c.podClient.Pods("").List(metav1.ListOptions{})
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	for _, pod := range pods.Items {
 		podLimits, hasLimits := getPodSoftLimits(pod)
@@ -58,7 +62,11 @@ func (c *softLimitController) killPods() {
 
 		if ok := lessThan(podLimits, podMetrics); ok {
 			log.Printf("Killing pod %s-%s", pod.Name, pod.Namespace)
-			c.podClient.Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
+			err := c.podClient.Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 		}
 	}
 }
