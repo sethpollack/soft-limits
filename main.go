@@ -13,20 +13,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func main() {
-	var (
-		kubeconfig *string
-		interval   *int
-	)
+var (
+	kubeconfig *string
+	interval   *int
+)
 
-	if home := os.Getenv("HOME"); home != "" {
+func init() {
+	if home := os.Getenv("HOME"); home != "/" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
-
 	interval = flag.Int("interval", 10, "frequency for checking pods")
+}
 
+func main() {
 	flag.Parse()
 
 	var (
