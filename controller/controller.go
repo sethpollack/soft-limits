@@ -27,6 +27,8 @@ const (
 	softLimitMemAnnotation = "sethpollack.net/soft-limit-memory"
 )
 
+var parsedValues = make(map[string]float64)
+
 type softLimitController struct {
 	podClient       corev1.PodsGetter
 	podLister       listercorev1.PodLister
@@ -121,17 +123,13 @@ func (c *softLimitController) getPodMetrics(pod *v1.Pod) (api.ResourceList, erro
 }
 
 func parsePercent(s string) float64 {
-	parsedValues := make(map[string]float64)
-
 	_, ok := parsedValues[s]
 	if !ok {
 		i, err := strconv.ParseFloat(s[:len(s)-1], 64)
 		if err != nil {
 			log.Println("error parsing percentage", err)
-			parsedValues[s] = 0
-		} else {
-			parsedValues[s] = i
 		}
+		parsedValues[s] = i
 	}
 
 	return parsedValues[s]
