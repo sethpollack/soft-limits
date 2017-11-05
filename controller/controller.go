@@ -88,7 +88,7 @@ func (c *softLimitController) killPods() {
 			continue
 		}
 
-		if ok := lessThan(podLimits, podMetrics); ok {
+		if ok := limitsExceeded(podLimits, podMetrics); ok {
 			log.Printf("Killing pod %s-%s", pod.Name, pod.Namespace)
 			c.recorder.Event(pod, api.EventTypeNormal, "ExceededSoftLimit", "Killing pod.")
 			err := c.podClient.Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
@@ -145,64 +145,69 @@ func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 	cpuLimit, hasCpuLimit := p.Annotations[softLimitCpuAnnotation]
 	memLimit, hasMemLimit := p.Annotations[softLimitMemAnnotation]
 
-	podLimits := api.ResourceList{}
+	hardLimits := api.ResourceList{}
 	if !hasCpuLimit && !hasMemLimit {
-		return podLimits, false
+		return hardLimits, false
 	}
 
 	for _, c := range p.Spec.Containers {
 		if hasCpuLimit {
-			cpu := *podLimits.Cpu()
+			cpu := *hardLimits.Cpu()
 			cpu.Add(*c.Resources.Limits.Cpu())
-			podLimits[api.ResourceCPU] = cpu
+			hardLimits[api.ResourceCPU] = cpu
 		}
 
 		if hasMemLimit {
-			mem := *podLimits.Memory()
+			mem := *hardLimits.Memory()
 			mem.Add(*c.Resources.Limits.Memory())
-			podLimits[api.ResourceMemory] = mem
+			hardLimits[api.ResourceMemory] = mem
 		}
 	}
 
+	softLimits := api.ResourceList{}
 	if hasCpuLimit {
 		if strings.Contains(cpuLimit, "%") {
-			cpu := *podLimits.Cpu()
+			cpu := *hardLimits.Cpu()
 			cpu.Set(calculatePercentage(cpu.Value(), cpuLimit))
-			podLimits[api.ResourceCPU] = cpu
+			if cpu.Value() > 0 {
+				softLimits[api.ResourceCPU] = cpu
+			}
 		} else {
 			cpuQuantity, err := resource.ParseQuantity(cpuLimit)
 			if err == nil {
-				podLimits[api.ResourceCPU] = cpuQuantity
+				softLimits[api.ResourceCPU] = cpuQuantity
 			}
 		}
 	}
 
 	if hasMemLimit {
 		if strings.Contains(memLimit, "%") {
-			mem := *podLimits.Memory()
+			mem := *hardLimits.Memory()
 			mem.Set(calculatePercentage(mem.Value(), memLimit))
-			podLimits[api.ResourceMemory] = mem
+			if mem.Value() > 0 {
+				softLimits[api.ResourceMemory] = mem
+			}
 		} else {
 			memQuantity, err := resource.ParseQuantity(memLimit)
 			if err == nil {
-				podLimits[api.ResourceMemory] = memQuantity
+				softLimits[api.ResourceMemory] = memQuantity
 			}
 		}
 
 	}
 
-	return podLimits, true
+	return softLimits, true
 }
 
-func lessThan(a api.ResourceList, b api.ResourceList) bool {
-	result := true
-	for key, value := range a {
-		if other, found := b[key]; found {
-			if other.Cmp(value) < 0 {
-				result = false
+func limitsExceeded(limits api.ResourceList, actual api.ResourceList) bool {
+	exceeded := false
+	for resource, limitQuantity := range limits {
+		if actualQuantity, found := actual[resource]; found {
+			// returns 1 if the actualQuantity is greater than limitQuantity
+			if actualQuantity.Cmp(limitQuantity) == 1 {
+				exceeded = true
 			}
 		}
 	}
-
-	return result
+	return exceeded
 }

@@ -29,9 +29,9 @@ func init() {
 	}
 
 	if ns := os.Getenv("MY_POD_NAMESPACE"); ns != "" {
-		namespace = flag.String("namespace", ns, "(required) controller namespace.")
+		namespace = flag.String("namespace", ns, "(optional) controller namespace.")
 	} else {
-		namespace = flag.String("namespace", "", "(required) controller namespace.")
+		namespace = flag.String("namespace", "", "controller namespace.")
 	}
 
 	interval = flag.Int("interval", 10, "(optional) run frequency")
