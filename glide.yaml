@@ -18,6 +18,7 @@ import:
   - rest
   - tools/clientcmd
   - tools/cache
+  - tools/record
 - package: k8s.io/kubernetes
   version: ^1.9.0-alpha.2
   subpackages:

@@ -12,9 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	informercorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	listercorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/api"
 )
 
@@ -28,6 +30,7 @@ type softLimitController struct {
 	podLister       listercorev1.PodLister
 	podListerSynced cache.InformerSynced
 	heapsterClient  *heapster.HeapsterMetricsClient
+	recorder        record.EventRecorder
 }
 
 func NewController(client *kubernetes.Clientset, podInformer informercorev1.PodInformer, namespace string) *softLimitController {
@@ -36,7 +39,17 @@ func NewController(client *kubernetes.Clientset, podInformer informercorev1.PodI
 		podLister:       podInformer.Lister(),
 		podListerSynced: podInformer.Informer().HasSynced,
 		heapsterClient:  heapster.NewHeapsterMetricsClient(client.CoreV1()),
+		recorder:        createEventRecorder(client, namespace),
 	}
+}
+
+func createEventRecorder(client *kubernetes.Clientset, namespace string) record.EventRecorder {
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(log.Printf)
+	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{
+		Interface: client.CoreV1().Events(namespace),
+	})
+	return eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "soft-limit-controller"})
 }
 
 func (c *softLimitController) Run(ctx context.Context, duration time.Duration) {
@@ -75,6 +88,7 @@ func (c *softLimitController) killPods() {
 
 		if ok := lessThan(podLimits, podMetrics); ok {
 			log.Printf("Killing pod %s-%s", pod.Name, pod.Namespace)
+			c.recorder.Event(pod, api.EventTypeNormal, "ExceededSoftLimit", "Killing pod.")
 			err := c.podClient.Pods(pod.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
 			if err != nil {
 				log.Println(err)
