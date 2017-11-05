@@ -13,8 +13,11 @@ import:
   subpackages:
   - kubernetes
   - kubernetes/typed/core/v1
+  - informers/core/v1
+  - listers/core/v1
   - rest
   - tools/clientcmd
+  - tools/cache
 - package: k8s.io/kubernetes
   version: ^1.9.0-alpha.2
   subpackages:

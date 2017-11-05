@@ -39,11 +39,11 @@ func NewHeapsterMetricsClient(svcClient corev1.ServicesGetter) *HeapsterMetricsC
 	}
 }
 
-func podMetricsUrl(p v1.Pod) string {
+func podMetricsUrl(p *v1.Pod) string {
 	return fmt.Sprintf("%s/namespaces/%s/pods/%s", metricsRoot, p.Namespace, p.Name)
 }
 
-func (cli *HeapsterMetricsClient) GetPodMetrics(pod v1.Pod) (metricsapi.PodMetrics, error) {
+func (cli *HeapsterMetricsClient) GetPodMetrics(pod *v1.Pod) (metricsapi.PodMetrics, error) {
 	path := podMetricsUrl(pod)
 	params := map[string]string{"labelSelector": ""}
 

@@ -9,8 +9,12 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	informercorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	listercorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/api"
 )
 
@@ -20,18 +24,27 @@ const (
 )
 
 type softLimitController struct {
-	podClient      corev1.PodsGetter
-	heapsterClient *heapster.HeapsterMetricsClient
+	podClient       corev1.PodsGetter
+	podLister       listercorev1.PodLister
+	podListerSynced cache.InformerSynced
+	heapsterClient  *heapster.HeapsterMetricsClient
 }
 
-func NewController(client *kubernetes.Clientset) *softLimitController {
+func NewController(client *kubernetes.Clientset, podInformer informercorev1.PodInformer, namespace string) *softLimitController {
 	return &softLimitController{
-		podClient:      client.CoreV1(),
-		heapsterClient: heapster.NewHeapsterMetricsClient(client.CoreV1()),
+		podClient:       client.CoreV1(),
+		podLister:       podInformer.Lister(),
+		podListerSynced: podInformer.Informer().HasSynced,
+		heapsterClient:  heapster.NewHeapsterMetricsClient(client.CoreV1()),
 	}
 }
 
 func (c *softLimitController) Run(ctx context.Context, duration time.Duration) {
+	if !cache.WaitForCacheSync(ctx.Done(), c.podListerSynced) {
+		log.Print("timed out waiting for cache sync")
+		return
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -42,13 +55,13 @@ func (c *softLimitController) Run(ctx context.Context, duration time.Duration) {
 }
 
 func (c *softLimitController) killPods() {
-	pods, err := c.podClient.Pods("").List(metav1.ListOptions{})
+	pods, err := c.podLister.Pods("").List(labels.Everything())
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	for _, pod := range pods.Items {
+	for _, pod := range pods {
 		podLimits, hasLimits := getPodSoftLimits(pod)
 		if !hasLimits {
 			continue
@@ -71,7 +84,7 @@ func (c *softLimitController) killPods() {
 	}
 }
 
-func (c *softLimitController) getPodMetrics(pod v1.Pod) (api.ResourceList, error) {
+func (c *softLimitController) getPodMetrics(pod *v1.Pod) (api.ResourceList, error) {
 	podMetrics := api.ResourceList{}
 	containerMetrics, err := c.heapsterClient.GetPodMetrics(pod)
 	if err != nil {
@@ -91,7 +104,7 @@ func (c *softLimitController) getPodMetrics(pod v1.Pod) (api.ResourceList, error
 	return podMetrics, nil
 }
 
-func getPodSoftLimits(p v1.Pod) (api.ResourceList, bool) {
+func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 	cpuLimit, hasCpuLimit := p.Annotations[softLimitCpuAnnotation]
 	memLimit, hasMemLimit := p.Annotations[softLimitMemAnnotation]
 
