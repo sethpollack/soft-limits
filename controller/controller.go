@@ -166,8 +166,8 @@ func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 	if hasCpuLimit {
 		if strings.Contains(cpuLimit, "%") {
 			cpu := *hardLimits.Cpu()
-			cpu.Set(calculatePercentage(cpu.Value(), cpuLimit))
-			if cpu.Value() > 0 {
+			cpu = *resource.NewMilliQuantity(calculatePercentage(cpu.MilliValue(), cpuLimit), resource.DecimalSI)
+			if cpu.MilliValue() > 0 {
 				softLimits[api.ResourceCPU] = cpu
 			}
 		} else {
@@ -181,7 +181,7 @@ func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 	if hasMemLimit {
 		if strings.Contains(memLimit, "%") {
 			mem := *hardLimits.Memory()
-			mem.Set(calculatePercentage(mem.Value(), memLimit))
+			mem = *resource.NewQuantity(calculatePercentage(mem.Value(), memLimit), resource.DecimalSI)
 			if mem.Value() > 0 {
 				softLimits[api.ResourceMemory] = mem
 			}
