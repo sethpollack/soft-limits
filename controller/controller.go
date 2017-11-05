@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sethpollack/soft-limits/heapster"
@@ -118,6 +120,27 @@ func (c *softLimitController) getPodMetrics(pod *v1.Pod) (api.ResourceList, erro
 	return podMetrics, nil
 }
 
+func parsePercent(s string) float64 {
+	parsedValues := make(map[string]float64)
+
+	_, ok := parsedValues[s]
+	if !ok {
+		i, err := strconv.ParseFloat(s[:len(s)-1], 64)
+		if err != nil {
+			log.Println("error parsing percentage", err)
+			parsedValues[s] = 0
+		} else {
+			parsedValues[s] = i
+		}
+	}
+
+	return parsedValues[s]
+}
+
+func calculatePercentage(val int64, percent string) int64 {
+	return int64(float64(val) - (float64(val) * (parsePercent(percent) / float64(100))))
+}
+
 func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 	cpuLimit, hasCpuLimit := p.Annotations[softLimitCpuAnnotation]
 	memLimit, hasMemLimit := p.Annotations[softLimitMemAnnotation]
@@ -127,18 +150,45 @@ func getPodSoftLimits(p *v1.Pod) (api.ResourceList, bool) {
 		return podLimits, false
 	}
 
+	for _, c := range p.Spec.Containers {
+		if hasCpuLimit {
+			cpu := *podLimits.Cpu()
+			cpu.Add(*c.Resources.Limits.Cpu())
+			podLimits[api.ResourceCPU] = cpu
+		}
+
+		if hasMemLimit {
+			mem := *podLimits.Memory()
+			mem.Add(*c.Resources.Limits.Memory())
+			podLimits[api.ResourceMemory] = mem
+		}
+	}
+
 	if hasCpuLimit {
-		cpuQuantity, err := resource.ParseQuantity(cpuLimit)
-		if err == nil {
-			podLimits[api.ResourceCPU] = cpuQuantity
+		if strings.Contains(cpuLimit, "%") {
+			cpu := *podLimits.Cpu()
+			cpu.Set(calculatePercentage(cpu.Value(), cpuLimit))
+			podLimits[api.ResourceCPU] = cpu
+		} else {
+			cpuQuantity, err := resource.ParseQuantity(cpuLimit)
+			if err == nil {
+				podLimits[api.ResourceCPU] = cpuQuantity
+			}
 		}
 	}
 
 	if hasMemLimit {
-		memQuantity, err := resource.ParseQuantity(memLimit)
-		if err == nil {
-			podLimits[api.ResourceMemory] = memQuantity
+		if strings.Contains(memLimit, "%") {
+			mem := *podLimits.Memory()
+			mem.Set(calculatePercentage(mem.Value(), memLimit))
+			podLimits[api.ResourceMemory] = mem
+		} else {
+			memQuantity, err := resource.ParseQuantity(memLimit)
+			if err == nil {
+				podLimits[api.ResourceMemory] = memQuantity
+			}
 		}
+
 	}
 
 	return podLimits, true
