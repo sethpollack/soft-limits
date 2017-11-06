@@ -13,7 +13,7 @@ COPY --from=vendor /go/src/github.com/sethpollack/soft-limits/vendor ./vendor
 RUN	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o bin/soft-limits
 
 FROM scratch AS soft-limits
-LABEL maintainer="Seth Pollack <spollack@beenverified.com>"
+LABEL maintainer="Seth Pollack <seth@sethpollack.net>"
 COPY --from=build /etc/ssl/certs/ /etc/ssl/certs/
 COPY --from=build /go/src/github.com/sethpollack/soft-limits/bin/soft-limits /usr/local/bin/soft-limits
 ENTRYPOINT ["/usr/local/bin/soft-limits"]

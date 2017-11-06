@@ -28,7 +28,7 @@ spec:
       serviceAccountName: soft-limits
       containers:
       - name: soft-limits
-        image: beenverifiedinc/soft-limits:latest
+        image: sethpollack/soft-limits:latest
         args:
         - -interval=15
         resources:
